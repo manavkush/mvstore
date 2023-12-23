@@ -1,7 +1,18 @@
 package main
 
-import "fmt"
+import (
+	"log"
+
+	"github.com/manavkush/mvstore/p2p"
+)
 
 func main() {
-  fmt.Println("Hello, World!")
+	listenAddr := ":4000"
+	tr := p2p.NewTCPTransport(listenAddr)
+
+	if err := tr.ListenAndAccept(); err != nil {
+		log.Fatal(err)
+	}
+
+	select {}
 }
