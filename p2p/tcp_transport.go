@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"sync"
@@ -25,23 +24,27 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 }
 
 type TCPTransport struct {
-	listenAddress string
-	listener      net.Listener
-	shakeHands    HandshakeFunc
+	TCPTransportConfig
+	listener net.Listener
 
 	mu    sync.RWMutex
 	peers map[net.Addr]Peer
 }
 
-func NewTCPTransport(listenAddr string) *TCPTransport {
+type TCPTransportConfig struct {
+	ListenAddr    string
+	HandshakeFunc HandshakeFunc
+	Decoder       Decoder
+}
+
+func NewTCPTransport(config TCPTransportConfig) *TCPTransport {
 	return &TCPTransport{
-		listenAddress: listenAddr,
-		shakeHands:    NOPHandshakeFunc,
+		TCPTransportConfig: config,
 	}
 }
 
 func (t *TCPTransport) ListenAndAccept() error {
-	ln, err := net.Listen("tcp", t.listenAddress)
+	ln, err := net.Listen("tcp", t.ListenAddr)
 	if err != nil {
 		return err
 	}
@@ -64,17 +67,32 @@ func (t *TCPTransport) startAcceptLoop() {
 	}
 }
 
+type Temp struct{}
+
 func (t *TCPTransport) handleConn(conn net.Conn) {
 	tcpPeer := NewTCPPeer(conn, true)
 
 	fmt.Printf("new incoming connection %+v\n", tcpPeer)
 
-	if err := t.shakeHands(conn); err != nil {
-
+	if err := t.HandshakeFunc(conn); err != nil {
+		conn.Close()
+		fmt.Printf("TCP handshake error: %s\n", err)
+		return
 	}
 
 	// Read Loop
+	msg := &Message{}
+
+	fmt.Println("Starting Reading print loop")
 	for {
+		if err := t.Decoder.Decode(conn, msg); err != nil {
+			fmt.Printf("TCP error: %s\n", err)
+			continue
+		}
+
+		msg.From = conn.RemoteAddr()
+
+		fmt.Printf("TCP message received: %+v\n", msg)
 		// n, err := conn.Read(buff)
 	}
 
